@@ -82,3 +82,4 @@ Migrate the cloud deployment from the single-user local SQLite / demo mode to a 
    - `tests/test_cloud_supabase.py` verifying multi-user isolation, token validation, and encryption.
 8. **Documentation & Setup Guides**:
    - `CLOUD_SETUP_GUIDE.md`, `CLOUD_SECURITY_REPORT.md`, `CLOUD_MIGRATION_REPORT.md`.
+

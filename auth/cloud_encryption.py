@@ -84,3 +84,4 @@ def decrypt_text(ciphertext_hex: str, user_id: str, associated_data: str = "") -
         return decrypted.decode("utf-8", errors="replace")
     except Exception as e:
         return f"[Decryption Error: {e}]"
+

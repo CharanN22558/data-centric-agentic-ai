@@ -10,25 +10,29 @@ import os
 from typing import Optional, Dict, Any
 from supabase import create_client, Client
 
-# Read configuration from environment
+# Read configuration from environment: prefer SUPABASE_PUBLISHABLE_KEY, fallback to SUPABASE_ANON_KEY
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_PUBLISHABLE_KEY = (
+    os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+    or os.getenv("SUPABASE_ANON_KEY", "").strip()
+)
+SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY
 
 
 def is_supabase_configured() -> bool:
     """Checks if Supabase credentials are provided in the environment."""
-    return bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+    return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
 
 
 def get_anon_supabase_client() -> Optional[Client]:
     """
-    Returns an unauthenticated public Supabase client using SUPABASE_ANON_KEY.
+    Returns an unauthenticated public Supabase client using SUPABASE_PUBLISHABLE_KEY / SUPABASE_ANON_KEY.
     Used for initial sign-up, sign-in, and password reset requests.
     """
     if not is_supabase_configured():
         return None
     try:
-        return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        return create_client(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
     except Exception as e:
         print(f"[SUPABASE] Error creating anon client: {e}")
         return None
@@ -42,7 +46,7 @@ def get_user_supabase_client(jwt_access_token: str) -> Optional[Client]:
     if not is_supabase_configured() or not jwt_access_token:
         return None
     try:
-        client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        client = create_client(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         client.postgrest.auth(jwt_access_token)
         # Apply token to storage client headers as well
         client.storage.session.headers.update({"Authorization": f"Bearer {jwt_access_token}"})
@@ -74,3 +78,4 @@ def verify_jwt_token(jwt_access_token: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"[SUPABASE] JWT Verification failed: {e}")
     return None
+

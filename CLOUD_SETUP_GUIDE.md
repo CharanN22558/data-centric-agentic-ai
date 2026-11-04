@@ -82,3 +82,4 @@ Once complete:
 - Visit `https://data-centric-agentic-ai-fcsl.onrender.com`.
 - The SQLite table error will be completely gone.
 - Anyone can now create their personal account, verify email, upload documents, search using RAG, and modify documents with full isolation!
+

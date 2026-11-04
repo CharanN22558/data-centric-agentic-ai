@@ -262,3 +262,4 @@ CREATE POLICY "Users can delete own documents from private bucket"
         bucket_id = 'user-documents' AND
         (storage.foldername(name))[1] = auth.uid()::text
     );
+

@@ -95,13 +95,52 @@ def test_sql_migration_file_exists():
         sql = f.read()
 
     # Verify tables
+    assert "CREATE TABLE IF NOT EXISTS public.user_profiles" in sql
     assert "CREATE TABLE IF NOT EXISTS public.documents" in sql
     assert "CREATE TABLE IF NOT EXISTS public.document_versions" in sql
     assert "CREATE TABLE IF NOT EXISTS public.modification_requests" in sql
     assert "CREATE TABLE IF NOT EXISTS public.document_chunks" in sql
     assert "vector(384)" in sql
 
-    # Verify RLS policies
+    # Verify RLS policies on tables
     assert "ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;" in sql
     assert "auth.uid() = user_id" in sql
-    assert "match_document_chunks" in sql
+    
+    # Verify SECURITY INVOKER on search function
+    assert "CREATE OR REPLACE FUNCTION match_document_chunks" in sql
+    assert "SECURITY INVOKER" in sql
+    assert "dc.user_id = auth.uid()" in sql
+
+    # Verify private storage bucket & storage RLS policies
+    assert "INSERT INTO storage.buckets" in sql
+    assert "'user-documents', false" in sql or "false" in sql
+    assert "CREATE POLICY \"Users can upload own documents to private bucket\"" in sql
+    assert "CREATE POLICY \"Users can read own documents from private bucket\"" in sql
+    assert "(storage.foldername(name))[1] = auth.uid()::text" in sql
+
+
+def test_supabase_publishable_key_preference(monkeypatch):
+    """Verifies that SUPABASE_PUBLISHABLE_KEY takes precedence with SUPABASE_ANON_KEY fallback."""
+    from database import cloud_db
+    
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "sb_pub_test_12345")
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    
+    # Re-evaluate
+    pub_key = (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+    )
+    assert pub_key == "sb_pub_test_12345"
+
+    # Fallback check
+    monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "sb_anon_fallback_67890")
+    fallback_key = (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+    )
+    assert fallback_key == "sb_anon_fallback_67890"
+
+

@@ -48,3 +48,4 @@ This happened because the website relied on ephemeral local SQLite storage on Re
 ## 3. Next Step for Deployment
 
 Push this complete implementation to GitHub and add your Supabase credentials to Render as explained in [`CLOUD_SETUP_GUIDE.md`](file:///c:/Users/DSP%20LAB/Desktop/PROJECT-1/CLOUD_SETUP_GUIDE.md).
+

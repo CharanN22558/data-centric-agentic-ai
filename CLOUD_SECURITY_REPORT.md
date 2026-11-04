@@ -71,3 +71,4 @@
 | `test_modifications.py` | *(All 2 tests)* | Core modification engine | **PASSED** |
 | `test_rag.py` | `test_txt_rag_pipeline` | Semantic chunking & retrieval | **PASSED** |
 | `test_version_control.py` | `test_transactional_versioning_and_rollback` | Multi-version commit and rollback | **PASSED** |
+

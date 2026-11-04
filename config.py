@@ -25,9 +25,13 @@ IS_CLOUD_MODE = (APP_MODE == "cloud")
 IS_LOCAL_MODE = (APP_MODE == "local")
 IS_DEMO_MODE = (APP_MODE == "demo")
 
-# Supabase Credentials
+# Supabase Credentials: prefer SUPABASE_PUBLISHABLE_KEY with SUPABASE_ANON_KEY fallback
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_PUBLISHABLE_KEY = (
+    os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+    or os.getenv("SUPABASE_ANON_KEY", "").strip()
+)
+SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY
 
 # Cloud Master Encryption Key (Used to derive per-user AES-256-GCM at rest keys)
 APP_ENCRYPTION_MASTER_KEY = os.getenv("APP_ENCRYPTION_MASTER_KEY", "").strip()
