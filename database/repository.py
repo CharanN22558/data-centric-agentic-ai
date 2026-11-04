@@ -99,7 +99,7 @@ class CloudSupabaseRepository:
             self.client.storage.from_("user-documents").upload(
                 path=storage_path,
                 file=encrypted_bytes,
-                file_options={"content-type": "application/octet-stream", "upsert": "true"}
+                file_options={"content-type": "application/octet-stream", "upsert": "false"}
             )
         except Exception as e:
             return False, f"Storage upload failed: {e}", None
@@ -185,7 +185,7 @@ class CloudSupabaseRepository:
             self.client.storage.from_("user-documents").upload(
                 path=storage_path,
                 file=encrypted_bytes,
-                file_options={"content-type": "application/octet-stream", "upsert": "true"}
+                file_options={"content-type": "application/octet-stream", "upsert": "false"}
             )
 
             # Insert Version record

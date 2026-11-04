@@ -114,9 +114,9 @@ def test_sql_migration_file_exists():
     # Verify private storage bucket & storage RLS policies
     assert "INSERT INTO storage.buckets" in sql
     assert "'user-documents', false" in sql or "false" in sql
-    assert "CREATE POLICY \"Users can upload own documents to private bucket\"" in sql
-    assert "CREATE POLICY \"Users can read own documents from private bucket\"" in sql
-    assert "(storage.foldername(name))[1] = auth.uid()::text" in sql
+    assert "dcai_authenticated_upload_own_files" in sql
+    assert "dcai_authenticated_read_own_files" in sql
+    assert "(storage.foldername(name))[1] = (SELECT auth.uid()::text)" in sql
 
 
 def test_supabase_publishable_key_preference(monkeypatch):

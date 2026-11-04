@@ -52,3 +52,4 @@ def test_all_critical_modules_import_cleanly(module_name):
     """Verifies that every critical project module imports cleanly without raising ImportError."""
     mod = importlib.import_module(module_name)
     assert mod is not None
+

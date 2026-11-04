@@ -229,37 +229,55 @@ $$;
 -- ====================================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('user-documents', 'user-documents', false)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+-- Clean existing policies
+DROP POLICY IF EXISTS "Users can upload own documents to private bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Users can read own documents from private bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own documents in private bucket" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own documents from private bucket" ON storage.objects;
+DROP POLICY IF EXISTS "dcai_authenticated_upload_own_files" ON storage.objects;
+DROP POLICY IF EXISTS "dcai_authenticated_read_own_files" ON storage.objects;
+DROP POLICY IF EXISTS "dcai_authenticated_update_own_files" ON storage.objects;
+DROP POLICY IF EXISTS "dcai_authenticated_delete_own_files" ON storage.objects;
 
 -- Storage Policy: Users can only upload into their own folder (user_id/...)
-CREATE POLICY "Users can upload own documents to private bucket"
+CREATE POLICY "dcai_authenticated_upload_own_files"
     ON storage.objects FOR INSERT
+    TO authenticated
     WITH CHECK (
         bucket_id = 'user-documents' AND
-        (storage.foldername(name))[1] = auth.uid()::text
+        (storage.foldername(name))[1] = (SELECT auth.uid()::text)
     );
 
 -- Storage Policy: Users can only read/download from their own folder
-CREATE POLICY "Users can read own documents from private bucket"
+CREATE POLICY "dcai_authenticated_read_own_files"
     ON storage.objects FOR SELECT
+    TO authenticated
     USING (
         bucket_id = 'user-documents' AND
-        (storage.foldername(name))[1] = auth.uid()::text
+        (storage.foldername(name))[1] = (SELECT auth.uid()::text)
     );
 
 -- Storage Policy: Users can update/replace files in their own folder
-CREATE POLICY "Users can update own documents in private bucket"
+CREATE POLICY "dcai_authenticated_update_own_files"
     ON storage.objects FOR UPDATE
+    TO authenticated
     USING (
         bucket_id = 'user-documents' AND
-        (storage.foldername(name))[1] = auth.uid()::text
+        (storage.foldername(name))[1] = (SELECT auth.uid()::text)
+    )
+    WITH CHECK (
+        bucket_id = 'user-documents' AND
+        (storage.foldername(name))[1] = (SELECT auth.uid()::text)
     );
 
 -- Storage Policy: Users can delete files in their own folder
-CREATE POLICY "Users can delete own documents from private bucket"
+CREATE POLICY "dcai_authenticated_delete_own_files"
     ON storage.objects FOR DELETE
+    TO authenticated
     USING (
         bucket_id = 'user-documents' AND
-        (storage.foldername(name))[1] = auth.uid()::text
+        (storage.foldername(name))[1] = (SELECT auth.uid()::text)
     );
 

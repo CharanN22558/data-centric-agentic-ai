@@ -21,7 +21,13 @@ SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY
 
 def is_supabase_configured() -> bool:
     """Checks if Supabase credentials are provided in the environment."""
-    return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
+    url = os.getenv("SUPABASE_URL", "").strip() or SUPABASE_URL
+    key = (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+        or SUPABASE_PUBLISHABLE_KEY
+    )
+    return bool(url and key)
 
 
 def get_anon_supabase_client() -> Optional[Client]:
@@ -29,10 +35,16 @@ def get_anon_supabase_client() -> Optional[Client]:
     Returns an unauthenticated public Supabase client using SUPABASE_PUBLISHABLE_KEY / SUPABASE_ANON_KEY.
     Used for initial sign-up, sign-in, and password reset requests.
     """
-    if not is_supabase_configured():
+    url = os.getenv("SUPABASE_URL", "").strip() or SUPABASE_URL
+    key = (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+        or SUPABASE_PUBLISHABLE_KEY
+    )
+    if not (url and key):
         return None
     try:
-        return create_client(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+        return create_client(url, key)
     except Exception as e:
         print(f"[SUPABASE] Error creating anon client: {e}")
         return None
@@ -41,15 +53,34 @@ def get_anon_supabase_client() -> Optional[Client]:
 def get_user_supabase_client(jwt_access_token: str) -> Optional[Client]:
     """
     Returns an authenticated Supabase client scoped to the authenticated user's JWT.
-    This ensures all subsequent DB and Storage queries strictly enforce PostgreSQL RLS!
+    Passes custom Authorization header via ClientOptions so that PostgREST, Auth, and Storage
+    requests all carry the user's Bearer token and strictly enforce PostgreSQL & Storage RLS!
     """
-    if not is_supabase_configured() or not jwt_access_token:
+    url = os.getenv("SUPABASE_URL", "").strip() or SUPABASE_URL
+    key = (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+        or SUPABASE_PUBLISHABLE_KEY
+    )
+    if not (url and key) or not jwt_access_token:
         return None
     try:
-        client = create_client(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+        from supabase.client import ClientOptions
+        bearer_token = f"Bearer {jwt_access_token}"
+        custom_headers = {
+            "Authorization": bearer_token,
+            "apikey": key,
+        }
+        options = ClientOptions(headers=custom_headers)
+        client = create_client(url, key, options=options)
+        
+        # Explicitly ensure postgrest, storage, and underlying httpx clients have the auth header set
         client.postgrest.auth(jwt_access_token)
-        # Apply token to storage client headers as well
-        client.storage.session.headers.update({"Authorization": f"Bearer {jwt_access_token}"})
+        if hasattr(client, "storage") and hasattr(client.storage, "_headers"):
+            client.storage._headers["Authorization"] = bearer_token
+            if hasattr(client.storage, "session") and hasattr(client.storage.session, "headers"):
+                client.storage.session.headers["Authorization"] = bearer_token
+
         return client
     except Exception as e:
         print(f"[SUPABASE] Error creating user-scoped client: {e}")
