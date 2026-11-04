@@ -1,112 +1,83 @@
 """
 UI Question Answering (RAG Chat) Component.
-Provides individual and workspace search with strict citations,
-external Gemini processing toggle, and privacy notifications.
+
+Supports individual document and entire workspace semantic search
+using persistent pgvector in cloud mode or ChromaDB locally.
 """
 
 import streamlit as st
-from database.db_manager import get_db_connection
-from rag.retrieval import retrieve_context, generate_rag_answer
+from rag.retrieval import generate_rag_answer
+from rag.vector_store import get_vector_store
 from auth.gemini_client import get_gemini_api_key, get_gemini_model
-from config import IS_DEMO_MODE
 
 
-def render_chat(user_id: int):
+def render_chat(repo, session_state):
     st.markdown("## 💬 Ask AI — Retrieval-Augmented Generation")
+    st.caption("Perform semantic search with exact source citations across your private documents.")
 
-    # Privacy & Processing Notice
-    with st.expander("🛡️ Privacy & External Processing Notice", expanded=False):
+    # Privacy & Consent Notice
+    with st.expander("🛡️ Privacy & External AI Processing Notice", expanded=False):
         st.markdown("""
-        - Local vector retrieval runs **entirely in-memory on your computer**.
-        - Embeddings are generated locally using **SentenceTransformers**.
-        - If Gemini is enabled, only the **retrieved excerpts** needed to answer your question are transmitted to Google Gemini.
-        - **Consent**: Private user documents are never sent without your explicit approval.
+        - **Vector Search**: Runs securely in your private workspace.
+        - **Google Gemini**: Only retrieved context excerpts are sent to Gemini if enabled.
+        - **Consent**: Processing requires your explicit toggle below.
         """)
 
-    # Cloud Consent checkbox in chat
     col_c1, col_c2 = st.columns([2, 1])
     with col_c1:
         cloud_consent = st.checkbox(
-            "Allow Gemini Cloud Synthesis for this session (Excerpts only)",
-            value=st.session_state.get("cloud_consent", False),
-            help="Enables Google Gemini LLM to generate smooth natural language answers based on retrieved context."
+            "Enable Google Gemini Cloud Synthesis (Optional)",
+            value=session_state.get("cloud_consent", False),
+            help="Generates fluent conversational answers using retrieved context."
         )
-        st.session_state["cloud_consent"] = cloud_consent
+        session_state["cloud_consent"] = cloud_consent
 
     with col_c2:
         has_key = bool(get_gemini_api_key())
         if has_key and cloud_consent:
             st.caption(f"🤖 Engine: **Gemini ({get_gemini_model()})**")
-        elif has_key and not cloud_consent and not IS_DEMO_MODE:
-            st.caption("🔒 Engine: **Local (Consent required)**")
+        elif has_key and not cloud_consent:
+            st.caption("🔒 Engine: **Local Heuristic (Consent Disabled)**")
         else:
-            st.caption("🖥️ Engine: **Local Offline Fallback**")
+            st.caption("🖥️ Engine: **Local Offline Heuristic**")
 
-    # Load files for filter dropdown
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT doc_id, original_filename FROM documents WHERE user_id = ?;", (user_id,))
-    docs = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-
-    # Search Mode Selector
-    search_options = {"All Workspace Documents (Workspace Search)": None}
+    # Target Document Choice
+    docs = repo.list_documents()
+    doc_options = {"🌐 Entire Workspace (All Documents)": None}
     for d in docs:
-        search_options[f"Document: {d['original_filename']} ({d['doc_id']})"] = d["doc_id"]
+        doc_options[f"📄 {d['original_filename']} (v{d['current_version']})"] = d["doc_id"]
 
-    selected_label = st.selectbox("Search Scope:", list(search_options.keys()))
-    target_doc_id = search_options[selected_label]
+    selected_label = st.selectbox("Search Target:", list(doc_options.keys()))
+    selected_doc_id = doc_options[selected_label]
 
-    # Initialize session state for messages
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+    query = st.text_input("Ask a question about your documents:", placeholder="e.g. 'What are the remote work policy hours?'")
 
-    # Display chat stream
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg.get("engine"):
-                st.caption(f"Generated via: `{msg['engine']}`")
-            if msg.get("citations"):
-                with st.expander("📌 Source Citations & References", expanded=False):
-                    for cit in msg["citations"]:
-                        st.markdown(f"**[Source {cit['source_id']}] {cit['filename']}** — `{cit['location']}`")
-                        st.caption(f"\"{cit['excerpt']}\"")
+    if st.button("🔍 Search & Answer", type="primary"):
+        if not query.strip():
+            st.error("Please enter a question.")
+            return
 
-    # Chat input
-    user_query = st.chat_input("Ask a question about your documents...")
-    if user_query:
-        st.session_state.chat_history.append({"role": "user", "content": user_query})
-        with st.chat_message("user"):
-            st.markdown(user_query)
+        with st.spinner("Searching vector index and retrieving context..."):
+            vstore = get_vector_store(session_state)
+            retrieved_chunks = vstore.search(query, top_k=4, doc_id=selected_doc_id)
 
-        # Retrieval & Answering
-        with st.chat_message("assistant"):
-            with st.spinner("Retrieving semantic evidence and formulating response..."):
-                retrieved = retrieve_context(user_id, user_query, target_doc_id=target_doc_id, top_k=4)
-                res = generate_rag_answer(
-                    query=user_query,
-                    retrieved_chunks=retrieved,
-                    user_consented_to_cloud=cloud_consent,
-                    is_demo_mode=IS_DEMO_MODE
-                )
+            if not retrieved_chunks:
+                st.warning("No relevant passages found in the selected documents.")
+                return
 
-                st.markdown(res["answer"])
-                st.caption(f"Generated via: `{res.get('engine', 'Local')}`")
+            # Format context
+            context_blocks = []
+            for idx, c in enumerate(retrieved_chunks):
+                context_blocks.append(f"[Source {idx+1} | {c.get('metadata', '')}]:\n{c['text']}")
 
-                if res.get("citations"):
-                    with st.expander("📌 Source Citations & References", expanded=True):
-                        for cit in res["citations"]:
-                            st.markdown(f"**[Source {cit['source_id']}] {cit['filename']}** — `{cit['location']}`")
-                            st.caption(f"\"{cit['excerpt']}\"")
+            full_context = "\n\n".join(context_blocks)
+            answer = generate_rag_answer(query, full_context, cloud_consent=cloud_consent)
 
-        st.session_state.chat_history.append({
-            "role": "assistant",
-            "content": res["answer"],
-            "citations": res.get("citations", []),
-            "engine": res.get("engine")
-        })
+            st.markdown("### Answer")
+            st.markdown(answer)
 
-    if st.button("🧹 Clear Chat History"):
-        st.session_state.chat_history = []
-        st.rerun()
+            st.markdown("---")
+            st.markdown("### Retrieved Sources")
+            for idx, c in enumerate(retrieved_chunks):
+                with st.expander(f"Source {idx+1} (Relevance: {round(c.get('similarity', 0.0), 3)})", expanded=False):
+                    st.write(c["text"])

@@ -67,3 +67,4 @@ Once you click **Save** on GitHub:
 1. Return to your Render Dashboard: **[https://dashboard.render.com](https://dashboard.render.com)**.
 2. Under your `data-centric-agentic-ai` service (or Blueprint), click **Manual Deploy** > **Deploy latest commit** (or click **Sync** on the Blueprint).
 3. Render will immediately detect the `main` branch, parse `render.yaml`, execute `start.py`, and launch your application!
+

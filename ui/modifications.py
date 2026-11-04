@@ -1,25 +1,24 @@
 """
 UI Document Modification Studio Component.
-Handles natural-language modification requests, preview plan, confirmation, and version download.
+
+Handles natural-language modification requests, preview plan, confirmation,
+and version commit using the unified repository.
 """
 
 import streamlit as st
-from database.db_manager import get_db_connection
-from agents.graph import agent_graph
 from modifications.planner import generate_structured_plan
+from modifications.executor import execute_modification_plan
+from rag.document_loader import load_and_chunk_document
+from rag.vector_store import get_vector_store
 
 
-def render_modifications(user_id: int, user_dek: bytes, execution_mode: str):
+def render_modifications(repo, session_state):
     st.markdown("## ✏️ Natural-Language Document Modification Studio")
+    st.caption("Instruct the agentic engine to update, replace values, append notes, or clean data in TXT, Excel, and PDF files.")
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT doc_id, original_filename, extension, current_version FROM documents WHERE user_id = ?;", (user_id,))
-    docs = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-
+    docs = repo.list_documents()
     if not docs:
-        st.info("No documents found in this workspace. Upload a file to enable modifications.")
+        st.info("No documents found in your workspace. Please upload a document first.")
         return
 
     col1, col2 = st.columns([1, 2])
@@ -29,12 +28,12 @@ def render_modifications(user_id: int, user_dek: bytes, execution_mode: str):
             docs,
             format_func=lambda d: f"{d['original_filename']} (v{d['current_version']})"
         )
-        st.info(f"Target format: `{doc_choice['extension'].upper()}` | Current Version: `v{doc_choice['current_version']}`")
+        st.info(f"Target Format: `{doc_choice['extension'].upper()}` | Current Version: `v{doc_choice['current_version']}`")
 
     with col2:
         instruction = st.text_area(
-            "Enter Natural Language Modification Instruction:",
-            placeholder="e.g. 'Remove duplicate entries' or 'Update cell B2 with 90000' or 'Append notes: Reviewed by Lead'"
+            "Enter Modification Instruction:",
+            placeholder="e.g. 'Change the employee name Rahul to Charan.' or 'Replace remote hours with 9 AM to 5 PM'"
         )
 
     if st.button("🚀 Analyze & Generate Execution Plan"):
@@ -48,46 +47,80 @@ def render_modifications(user_id: int, user_dek: bytes, execution_mode: str):
             st.session_state["pending_instruction"] = instruction
             st.session_state["pending_doc"] = doc_choice
 
-    # Display Plan and Approval
-    if "pending_plan" in st.session_state and st.session_state.get("pending_doc", {}).get("doc_id") == doc_choice["doc_id"]:
+    # Display Plan and Confirmation
+    if "pending_plan" in st.session_state:
         plan = st.session_state["pending_plan"]
+        inst = st.session_state["pending_instruction"]
+        target_doc = st.session_state["pending_doc"]
+
         st.markdown("---")
-        st.markdown("### 📋 Structured Execution Plan")
+        st.subheader("📋 Proposed Execution Plan")
         st.json(plan)
-        st.markdown(f"**Proposed Action**: {plan.get('description', '')}")
 
-        # Check execution mode
-        is_auto = (execution_mode == "AUTOMATIC")
-        if is_auto:
-            st.warning("⚡ Automatic Execution Mode is active: Changes will execute immediately without confirmation.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("✅ Confirm & Execute Modification", type="primary"):
+                with st.spinner("Executing modification, updating checksums, and committing new version..."):
+                    # 1. Read existing bytes
+                    current_bytes = repo.read_document_bytes(target_doc["doc_id"])
+                    if not current_bytes:
+                        st.error("Failed to read document bytes.")
+                        return
 
-        c_confirm, c_cancel = st.columns([1, 1])
-        with c_confirm:
-            btn_label = "Confirm & Execute Modification" if not is_auto else "Execute Automatically"
-            if st.button(f"✅ {btn_label}", type="primary"):
-                with st.spinner("Executing modification, running validation, and saving new version..."):
-                    # Invoke LangGraph
-                    init_state = {
-                        "user_id": user_id,
-                        "user_dek": user_dek,
-                        "user_input": st.session_state["pending_instruction"],
-                        "target_doc_id": doc_choice["doc_id"],
-                        "target_filename": doc_choice["original_filename"],
-                        "execution_approved": True,  # Approved by user confirmation
-                        "modification_plan": plan
-                    }
-                    res = agent_graph.invoke(init_state)
+                    # 2. Execute modification
+                    success, modified_bytes, summary = execute_modification_plan(
+                        current_bytes=current_bytes,
+                        extension=target_doc["extension"],
+                        plan=plan
+                    )
 
-                    if res.get("execution_status") == "SUCCESS":
-                        st.success(res.get("final_answer"))
-                        del st.session_state["pending_plan"]
-                        st.rerun()
+                    prev_v = target_doc["current_version"]
+
+                    if success and modified_bytes:
+                        # 3. Create version
+                        ok, msg, new_v = repo.create_version(target_doc["doc_id"], modified_bytes, summary)
+                        if ok:
+                            # 4. Record history
+                            repo.record_history(
+                                doc_id=target_doc["doc_id"],
+                                instruction=inst,
+                                interpretation=plan.get("details", summary),
+                                operation=plan.get("action", "UPDATE"),
+                                execution_status="SUCCESS",
+                                validation_status="VALID",
+                                summary_result=summary,
+                                prev_v=prev_v,
+                                new_v=new_v
+                            )
+
+                            # 5. Re-index vectors
+                            try:
+                                chunks = load_and_chunk_document(target_doc["original_filename"], modified_bytes)
+                                vstore = get_vector_store(session_state)
+                                vstore.add_chunks(target_doc["doc_id"], new_v, chunks)
+                            except Exception as ex:
+                                print(f"[REINDEX WARN]: {ex}")
+
+                            st.success(f"Successfully created v{new_v}: {summary}")
+                            del st.session_state["pending_plan"]
+                            st.rerun()
+                        else:
+                            st.error(msg)
                     else:
-                        st.error(res.get("final_answer") or res.get("error_message"))
+                        repo.record_history(
+                            doc_id=target_doc["doc_id"],
+                            instruction=inst,
+                            interpretation=plan.get("details", summary),
+                            operation=plan.get("action", "UNKNOWN"),
+                            execution_status="FAILED",
+                            validation_status="INVALID",
+                            summary_result=summary,
+                            prev_v=prev_v,
+                            new_v=prev_v
+                        )
+                        st.error(f"Modification Failed: {summary}")
 
-        with c_cancel:
-            if st.button("❌ Cancel Request"):
+        with c2:
+            if st.button("❌ Cancel Plan"):
                 del st.session_state["pending_plan"]
-                st.info("Modification request cancelled.")
                 st.rerun()
-
