@@ -104,3 +104,4 @@ The migration file [`supabase/migrations/0001_initial_schema.sql`](file:///c:/Us
 ## 4. Ready for Supabase Setup
 
 The code repository is verified and ready. You may now run [`supabase/migrations/0001_initial_schema.sql`](file:///c:/Users/DSP%20LAB/Desktop/PROJECT-1/supabase/migrations/0001_initial_schema.sql) in your Supabase SQL Editor and enter your credentials into Render.
+

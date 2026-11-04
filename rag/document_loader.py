@@ -77,3 +77,15 @@ def load_document_content(filename: str, content_bytes: bytes) -> Tuple[List[Loa
 
     return items, summary
 
+
+def load_and_chunk_document(filename: str, content_bytes: bytes, chunk_size: int = 500, chunk_overlap: int = 50):
+    """
+    Convenience pipeline wrapper:
+    Loads document content into items, then splits them into searchable chunks
+    while preserving page, sheet, row, and line provenance.
+    """
+    from rag.chunking import chunk_document_items
+    items, _ = load_document_content(filename, content_bytes)
+    return chunk_document_items(items, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
+

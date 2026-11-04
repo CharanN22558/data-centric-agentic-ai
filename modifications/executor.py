@@ -94,3 +94,16 @@ def execute_plan(plan: Dict[str, Any], file_bytes: bytes) -> Tuple[bytes, str]:
 
     else:
         raise ValueError(f"Unknown or unsupported modification action '{action}'.")
+
+
+def execute_modification_plan(current_bytes: bytes, extension: str, plan: Dict[str, Any]) -> Tuple[bool, bytes, str]:
+    """
+    Standard interface for executing a structured modification plan.
+    Returns: (success_bool, modified_bytes, summary_message)
+    """
+    try:
+        modified_bytes, summary = execute_plan(plan, current_bytes)
+        return True, modified_bytes, summary
+    except Exception as e:
+        return False, b"", str(e)
+
