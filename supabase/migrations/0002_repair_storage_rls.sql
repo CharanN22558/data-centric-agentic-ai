@@ -63,3 +63,4 @@ USING (
     bucket_id = 'user-documents'
     AND (storage.foldername(name))[1] = (SELECT auth.uid()::text)
 );
+

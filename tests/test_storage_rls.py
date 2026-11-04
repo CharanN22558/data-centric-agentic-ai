@@ -58,3 +58,4 @@ def test_repository_uses_upsert_false():
     # Check upload calls
     assert '"upsert": "false"' in repo_code
     assert '"upsert": "true"' not in repo_code
+

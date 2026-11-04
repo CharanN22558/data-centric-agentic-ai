@@ -92,3 +92,4 @@ To apply the storage policy repair to your Supabase project (`ftyvumxamwdalqhwcm
 1. I opened the **Supabase SQL Editor** in your browser:
    👉 **[https://supabase.com/dashboard/project/ftyvumxamwdalqhwcmow/sql/new](https://supabase.com/dashboard/project/ftyvumxamwdalqhwcmow/sql/new)**
 2. Paste the SQL from [`supabase/migrations/0002_repair_storage_rls.sql`](file:///c:/Users/DSP%20LAB/Desktop/PROJECT-1/supabase/migrations/0002_repair_storage_rls.sql) and click **Run**.
+

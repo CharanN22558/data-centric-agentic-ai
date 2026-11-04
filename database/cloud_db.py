@@ -53,7 +53,7 @@ def get_anon_supabase_client() -> Optional[Client]:
 def get_user_supabase_client(jwt_access_token: str) -> Optional[Client]:
     """
     Returns an authenticated Supabase client scoped to the authenticated user's JWT.
-    Passes custom Authorization header via ClientOptions so that PostgREST, Auth, and Storage
+    Passes custom Authorization header so that PostgREST, Auth, and Storage
     requests all carry the user's Bearer token and strictly enforce PostgreSQL & Storage RLS!
     """
     url = os.getenv("SUPABASE_URL", "").strip() or SUPABASE_URL
@@ -65,17 +65,14 @@ def get_user_supabase_client(jwt_access_token: str) -> Optional[Client]:
     if not (url and key) or not jwt_access_token:
         return None
     try:
-        from supabase.client import ClientOptions
+        # Create standard client with clean headers (avoiding duplicate apikey headers)
+        client = create_client(url, key)
         bearer_token = f"Bearer {jwt_access_token}"
-        custom_headers = {
-            "Authorization": bearer_token,
-            "apikey": key,
-        }
-        options = ClientOptions(headers=custom_headers)
-        client = create_client(url, key, options=options)
         
-        # Explicitly ensure postgrest, storage, and underlying httpx clients have the auth header set
+        # Authenticate PostgREST client with user JWT
         client.postgrest.auth(jwt_access_token)
+        
+        # Set user Bearer token for Storage client
         if hasattr(client, "storage") and hasattr(client.storage, "_headers"):
             client.storage._headers["Authorization"] = bearer_token
             if hasattr(client.storage, "session") and hasattr(client.storage.session, "headers"):
