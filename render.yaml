@@ -1,9 +1,10 @@
 services:
   - type: web
-    name: data-centric-agentic-ai-demo
+    name: data-centric-agentic-ai
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python start.py
     envVars:
       - key: APP_MODE
         value: demo
@@ -11,4 +12,5 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-1.5-flash
-
+      - key: PYTHON_VERSION
+        value: 3.11.9
