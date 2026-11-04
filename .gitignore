@@ -1,0 +1,43 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Local sensitive environment configuration
+.env
+.env.*
+!.env.example
+
+# Strict Privacy Exclusions: Never commit local user data, encrypted documents, or databases
+data/
+data/*
+*.db
+*.sqlite
+*.sqlite3
+*.enc
+
+# Ephemeral vector store & working files
+.chroma/
+vector_store/
+test_workspaces/
+*.zip
+project_clean_backup.zip
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Streamlit local settings & secrets
+.streamlit/secrets.toml
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+
