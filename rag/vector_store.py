@@ -46,17 +46,19 @@ class CloudVectorStore:
             texts = [c.text if hasattr(c, "text") else c["text"] for c in chunks]
             embeddings = embedding_provider.embed_documents(texts)
 
+            import json
             records = []
             for idx, chunk in enumerate(chunks):
                 text_val = chunk.text if hasattr(chunk, "text") else chunk["text"]
                 meta_val = chunk.metadata if hasattr(chunk, "metadata") else chunk.get("metadata", {})
+                meta_json = json.dumps(meta_val) if isinstance(meta_val, dict) else str(meta_val)
                 record = {
                     "user_id": self.user_id,
                     "document_id": doc_id,
                     "version_number": version_number,
                     "chunk_index": idx,
                     "chunk_ciphertext": encrypt_text(text_val, self.user_id),
-                    "source_metadata_ciphertext": encrypt_text(str(meta_val), self.user_id),
+                    "source_metadata_ciphertext": encrypt_text(meta_json, self.user_id),
                     "embedding": embeddings[idx]
                 }
                 records.append(record)
@@ -88,14 +90,20 @@ class CloudVectorStore:
             results = []
             for r in (resp.data or []):
                 decrypted_text = decrypt_text(r["chunk_ciphertext"], self.user_id)
-                decrypted_meta = decrypt_text(r.get("source_metadata_ciphertext") or "", self.user_id)
+                raw_meta = decrypt_text(r.get("source_metadata_ciphertext") or "", self.user_id)
+                meta_dict = {}
+                try:
+                    meta_dict = json.loads(raw_meta) if raw_meta and raw_meta.startswith("{") else {"raw": raw_meta}
+                except Exception:
+                    meta_dict = {"raw": raw_meta}
+
                 results.append({
                     "id": r["id"],
                     "document_id": r["document_id"],
                     "version_number": r["version_number"],
                     "chunk_index": r["chunk_index"],
                     "text": decrypted_text,
-                    "metadata": decrypted_meta,
+                    "metadata": meta_dict,
                     "similarity": r.get("similarity", 0.0)
                 })
             return results

@@ -29,10 +29,19 @@ def render_documents(repo, session_state):
             if uploaded_file.size > (MAX_UPLOAD_MB * 1024 * 1024):
                 st.error(f"File size exceeds limit of {MAX_UPLOAD_MB} MB.")
             elif st.button("🚀 Encrypt & Upload to Cloud Workspace"):
-                with st.spinner("Encrypting at rest and uploading to private storage..."):
-                    content_bytes = uploaded_file.read()
+                progress_bar = st.progress(0, text="Reading and validating file...")
+                content_bytes = uploaded_file.read()
+                
+                # Check for duplicate filename in active documents
+                existing_docs = repo.list_documents()
+                if any(d["original_filename"].lower() == uploaded_file.name.lower() for d in existing_docs):
+                    st.warning(f"A document named '{uploaded_file.name}' already exists in your workspace. Please rename or delete it first.")
+                    progress_bar.empty()
+                else:
+                    progress_bar.progress(25, text="Encrypting file at rest (AES-256-GCM)...")
                     success, msg, doc_id = repo.upload_document(uploaded_file.name, content_bytes)
                     if success and doc_id:
+                        progress_bar.progress(65, text="Extracting text and generating vector embeddings...")
                         # Index chunks in pgvector
                         try:
                             chunks = load_and_chunk_document(uploaded_file.name, content_bytes)
@@ -41,9 +50,11 @@ def render_documents(repo, session_state):
                         except Exception as ex:
                             print(f"[INDEXING WARN]: {ex}")
 
+                        progress_bar.progress(100, text="Upload and encryption complete!")
                         st.success(msg)
                         st.rerun()
                     else:
+                        progress_bar.empty()
                         st.error(msg)
 
     # Document Listing

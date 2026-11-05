@@ -88,6 +88,30 @@ def supabase_sign_in(email: str, password: str) -> Tuple[bool, str, Optional[Dic
         return False, f"Login failed: {str(e)}", None
 
 
+def supabase_refresh_session(refresh_token: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Refreshes an expiring user session using the stored refresh_token."""
+    if not is_supabase_configured() or not refresh_token:
+        return False, "Supabase or refresh token unavailable.", None
+
+    client = get_anon_supabase_client()
+    if not client:
+        return False, "Failed to connect to Supabase auth service.", None
+
+    try:
+        res = client.auth.refresh_session(refresh_token)
+        if res.session and res.user:
+            return True, "Session refreshed.", {
+                "user_id": str(res.user.id),
+                "email": res.user.email,
+                "access_token": res.session.access_token,
+                "refresh_token": res.session.refresh_token,
+                "display_name": res.user.user_metadata.get("display_name", res.user.email.split("@")[0])
+            }
+        return False, "Session refresh returned empty payload.", None
+    except Exception as e:
+        return False, f"Session refresh failed: {e}", None
+
+
 def supabase_sign_out(access_token: str) -> bool:
     """Signs out the user session."""
     try:

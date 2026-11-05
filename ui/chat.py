@@ -68,16 +68,35 @@ def render_chat(repo, session_state):
             # Format context
             context_blocks = []
             for idx, c in enumerate(retrieved_chunks):
-                context_blocks.append(f"[Source {idx+1} | {c.get('metadata', '')}]:\n{c['text']}")
+                chunk_text = c.get("text", "")
+                chunk_meta = c.get("metadata", {})
+                context_blocks.append({
+                    "filename": chunk_meta.get("filename", selected_label if selected_doc_id else "Document"),
+                    "location": chunk_meta.get("location_label") or chunk_meta.get("sheet") or f"Chunk {idx+1}",
+                    "text": chunk_text
+                })
 
-            full_context = "\n\n".join(context_blocks)
-            answer = generate_rag_answer(query, full_context, cloud_consent=cloud_consent)
+            rag_result = generate_rag_answer(
+                query=query,
+                retrieved_chunks=context_blocks,
+                user_consented_to_cloud=cloud_consent,
+                is_demo_mode=False
+            )
+            answer_text = rag_result.get("answer", "")
+            engine_used = rag_result.get("engine", "Local")
 
             st.markdown("### Answer")
-            st.markdown(answer)
+            st.caption(f"Engine: `{engine_used}`")
+            st.markdown(answer_text)
 
             st.markdown("---")
             st.markdown("### Retrieved Sources")
-            for idx, c in enumerate(retrieved_chunks):
-                with st.expander(f"Source {idx+1} (Relevance: {round(c.get('similarity', 0.0), 3)})", expanded=False):
-                    st.write(c["text"])
+            citations = rag_result.get("citations", [])
+            if citations:
+                for cite in citations:
+                    with st.expander(f"Source {cite['source_id']}: {cite['filename']} ({cite['location']})", expanded=False):
+                        st.write(cite["excerpt"])
+            else:
+                for idx, c in enumerate(retrieved_chunks):
+                    with st.expander(f"Source {idx+1} (Relevance: {round(c.get('similarity', 0.0), 3)})", expanded=False):
+                        st.write(c["text"])

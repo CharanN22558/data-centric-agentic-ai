@@ -11,7 +11,7 @@ from config import APP_MODE, IS_CLOUD_MODE, IS_LOCAL_MODE, IS_DEMO_MODE, DEFAULT
 from database.cloud_db import is_supabase_configured
 from auth.authentication import (
     supabase_sign_in, supabase_sign_up, supabase_sign_out, supabase_reset_password,
-    register_user, authenticate_user
+    supabase_refresh_session, register_user, authenticate_user
 )
 from database.repository import get_document_repository
 from ui.dashboard import render_dashboard
@@ -38,6 +38,8 @@ if "username" not in st.session_state:
     st.session_state.username = None
 if "jwt_token" not in st.session_state:
     st.session_state.jwt_token = ""
+if "refresh_token" not in st.session_state:
+    st.session_state.refresh_token = ""
 if "user_dek" not in st.session_state:
     st.session_state.user_dek = None
 if "execution_mode" not in st.session_state:
@@ -80,6 +82,7 @@ if not st.session_state.authenticated:
                         st.session_state.user_id = data["user_id"]
                         st.session_state.username = data["display_name"]
                         st.session_state.jwt_token = data["access_token"]
+                        st.session_state.refresh_token = data.get("refresh_token", "")
                         st.success(msg)
                         st.rerun()
                     else:
