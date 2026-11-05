@@ -33,7 +33,8 @@ def classify_user_intent(user_input: str) -> Dict[str, Any]:
     clean_lower = re.sub(r"[^\w\s]", "", lower).strip()
     clarification_phrases = [
         "change that", "update it", "do it", "fix it", "change value",
-        "change that value", "update that", "modify that", "fix that", "do change"
+        "change that value", "update that", "modify that", "fix that", "do change",
+        "change the name", "change name", "update name", "modify name"
     ]
     if clean_lower in clarification_phrases or (len(clean_lower.split()) <= 3 and any(p == clean_lower for p in clarification_phrases)):
         return {

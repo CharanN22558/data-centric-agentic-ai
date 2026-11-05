@@ -26,20 +26,20 @@ def render_chat(repo, session_state):
     col_c1, col_c2 = st.columns([2, 1])
     with col_c1:
         cloud_consent = st.checkbox(
-            "Enable Google Gemini Cloud Synthesis (Optional)",
-            value=session_state.get("cloud_consent", False),
-            help="Generates fluent conversational answers using retrieved context."
+            "Enable Google Gemini AI Synthesis",
+            value=session_state.get("cloud_consent", True),
+            help="Generates intelligent, grounded answers using Google Gemini LLM."
         )
         session_state["cloud_consent"] = cloud_consent
 
     with col_c2:
         has_key = bool(get_gemini_api_key())
         if has_key and cloud_consent:
-            st.caption(f"🤖 Engine: **Gemini ({get_gemini_model()})**")
+            st.caption(f"🤖 Active Engine: **Google Gemini ({get_gemini_model()})**")
         elif has_key and not cloud_consent:
-            st.caption("🔒 Engine: **Local Heuristic (Consent Disabled)**")
+            st.caption("🔒 Active Engine: **Local Offline Heuristic (Cloud Consent Off)**")
         else:
-            st.caption("🖥️ Engine: **Local Offline Heuristic**")
+            st.caption("🖥️ Active Engine: **Local Offline Heuristic (GEMINI_API_KEY not detected)**")
 
     # Target Document Choice
     docs = repo.list_documents()
